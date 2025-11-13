@@ -83,10 +83,6 @@ attach(df_clean)
 # 1. STATS DES, ANALYSE UNIVARIEE - VARIABLES QUANTITATIVES (CONTINUES)
 # ==============================================================================
 
-# ==============================================================================
-# 1. VARIABLES QUANTITATIVES (CONTINUES)
-# ==============================================================================
-
 summary(df_clean$Age)
 summary(df_clean$Log_Revenu)
 summary(df_clean$Heures_Hebdomadaires)
@@ -200,7 +196,67 @@ make_insurance_bar_plot = function(data, variable_name, titre, palette_name) {
 for (i in seq_along(assurance_vars)) {
   make_insurance_bar_plot(df_clean, assurance_vars[i], assurance_labels[i], palettes[i])}
 
+# ==============================================================================
+# 1. STATS DES, ANALYSE UNIVARIEE - Salaire Annuel (WAGP)
+# ==============================================================================
+# Filtre les valeurs NA et 0 pour calculer les statistiques sur ceux qui ont un salaire
+df_salaire_positif = df_clean %>% filter(Salaire_Annuel > 0)
 
+# Statistiques sur l'ensemble des données (y compris les 0)
+summary(df_clean$Salaire_Annuel)
+
+# Statistiques sur les salaires positifs uniquement (plus représentatif du revenu réel)
+cat("\n--- Statistiques pour les Salaires > 0 ---\n")
+summary(df_salaire_positif$Salaire_Annuel)
+
+# Calcul du nombre et de la proportion de salaires nuls
+n_zeros = sum(df_clean$Salaire_Annuel == 0, na.rm = TRUE)
+n_total = nrow(df_clean)
+prop_zeros = n_zeros / n_total
+
+cat(paste0("\nNombre d'observations avec un Salaire Annuel de 0 : ", n_zeros, " (", round(prop_zeros * 100, 2), "% du total)\n"))
+
+#2. Histogramme (Salaires Positifs)__________________________________________________
+
+# Calcul de la limite à 95% pour éviter les super-outliers sur l'axe X
+limite_x = quantile(df_salaire_positif$Salaire_Annuel, 0.95, na.rm = TRUE)
+
+plot_hist_salaire = ggplot(df_salaire_positif, aes(x = Salaire_Annuel)) +
+  # Utilisation de la densité pour comparer différentes tailles d'échantillons si besoin
+  geom_histogram(aes(y = after_stat(density)), bins = 100, fill = "darkblue", color = "white", alpha = 0.7) +
+  geom_density(color = "red", linewidth = 1) + # Ajout de la courbe de densité
+  # Limite l'axe X pour la clarté
+  coord_cartesian(xlim = c(0, limite_x)) +
+  scale_x_continuous(labels = comma) + # Formatage des nombres
+  labs(
+    title = "Distribution du Salaire Annuel (WAGP) (Salaires > 0)",
+    subtitle = paste("L'axe des X est tronqué au 95ème percentile pour la lisibilité"),
+    x = "Salaire Annuel (USD)",
+    y = "Densité"
+  ) +
+  theme_minimal()
+
+print(plot_hist_salaire)
+
+# 3. Boxplot (Identification des Outliers) ==============================================================================
+
+plot_boxplot_salaire = ggplot(df_salaire_positif, aes(y = Salaire_Annuel)) +
+  geom_boxplot(fill = "lightblue4", color = "seagreen", alpha = 0.8) +
+  # Limite l'axe Y pour mieux voir le corps de la distribution (interquartile)
+  coord_cartesian(ylim = c(0, limite_x)) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Boxplot du Salaire Annuel (WAGP)",
+    subtitle = "Tronqué au 99ème percentile",
+    y = "Salaire Annuel (USD)"
+  ) +
+  theme_bw() +
+  # Supprime l'axe X car il n'y a qu'une seule variable
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank())
+
+print(plot_boxplot_salaire)
 
 # ==============================================================================
 # ANALYSE BIVARIEE: LOG(REVENU) vs. ÂGE
@@ -241,6 +297,18 @@ suppressWarnings({
 })
 
 
+# TEST T DE STUDENT : LOG(REVENU) vs. SEXE ________________________________________________
+
+# H0: La moyenne de Log_Revenu est la même pour les Hommes et les Femmes.
+
+t_test_sexe_revenu = t.test(Log_Revenu ~ Sexe_F, data = df_clean)
+print(t_test_sexe_revenu)
+
+
+
+
+
+
 # ==============================================================================
 # 2.1. LOG(REVENU) vs. NIVEAU D'ÉTUDE
 # ==============================================================================
@@ -256,6 +324,22 @@ plot_boxplot_etudes = ggplot(df_clean, aes(x = Niveau_Etude_G, y = Log_Revenu, f
   theme(axis.text.x = element_text(angle = 15, hjust = 1), legend.position = "none")
 
 print(plot_boxplot_etudes)
+
+
+# Test de Kruskal-Wallis (Alternative non-paramétrique à l'ANOVA) ___________________
+
+"Le test de Kruskal-Wallis est un test statistique non
+paramétrique utilisé pour déterminer s'il existe une différence
+significative dans la tendance centrale (distribution ou médiane)
+d'une variable quantitative (continue ou ordinale)
+entre trois groupes indépendants ou plus.
+"
+# H0: La distribution de Log_Revenu est la même dans tous les groupes d'étude.
+kruskal_test_etude = kruskal.test(Log_Revenu ~ Niveau_Etude_G, data = df_clean)
+print(kruskal_test_etude)
+
+
+
 
 # ==============================================================================
 # 2.2. LOG(REVENU) vs. MAÎTRISE DE L'ANGLAIS
@@ -273,6 +357,15 @@ plot_boxplot_anglais = ggplot(df_clean, aes(x = Anglais_F, y = Log_Revenu, fill 
 
 print(plot_boxplot_anglais)
 
+
+# Test de Kruskal-Wallis : Log(Revenu) vs. Maîtrise de l'Anglais _____________________
+
+# H0: La distribution de Log_Revenu est la même dans tous les niveaux de maîtrise de l'anglais.
+kruskal_test_anglais = kruskal.test(Log_Revenu ~ Anglais_F, data = df_clean)
+print(kruskal_test_anglais)
+
+
+
 # ==============================================================================
 # 2.3. LOG(REVENU) vs. SEXE
 # ==============================================================================
@@ -287,6 +380,12 @@ plot_boxplot_sexe = ggplot(df_clean, aes(x = Sexe_F, y = Log_Revenu, fill = Sexe
   theme(legend.position = "none")
 
 print(plot_boxplot_sexe)
+
+# Test t de Student : Log(Revenu) vs. Sexe_____________________________________
+
+# H0: La moyenne de Log_Revenu est égale dans les deux groupes (Hommes et Femmes).
+t_test_sexe = t.test(Log_Revenu ~ Sexe_F, data = df_clean)
+print(t_test_sexe)
 
 
 # ==============================================================================
@@ -320,6 +419,12 @@ plot_boxplot_ap = ggplot(df_clean, aes(x = Assistance_Publique_F, y = Log_Revenu
 
 print(plot_boxplot_ap)
 
+# Test de Kruskal-Wallis : Log(Revenu) vs. Race ___________________________________
+
+# H0: La distribution de Log_Revenu est la même dans tous les groupes de race.
+kruskal_test_race = kruskal.test(Log_Revenu ~ Race_G, data = df_clean)
+print(kruskal_test_race)
+
 # ==============================================================================
 # 2.6. LOG(REVENU) vs. HEURES HEBDOMADAIRES (Nuage de points)
 # ==============================================================================
@@ -346,9 +451,25 @@ plot_heures_revenu = ggplot(df_clean, aes(x = Heures_Hebdomadaires, y = Log_Reve
   theme_bw()
 
 print(plot_heures_revenu)
-# Afficher la corrélation de Pearson
-cor_heures_revenu = cor(df_clean$Heures_Hebdomadaires, df_clean$Log_Revenu, use = "complete.obs")
-cat(paste0("\nCoefficient de corrélation (Pearson) : ", round(cor_heures_revenu, 3), "\n"))
+
+# Test de Corrélation de Pearson : Log(Revenu) vs. Heures Hebdomadaires ________________________
+"Définition du Test de Corrélation de Pearson
+Le Test de Corrélation de Pearson est une méthode statistique utilisée
+pour évaluer la force et la direction d'une relation linéaire
+entre deux variables quantitatives (ou continues).
+
+Il permet de répondre à la question :
+Dans quelle mesure les variations d'une variable sont-elles associées
+aux variations de l'autre variable,
+et cette association est-elle significative ?"
+
+# H0: Le coefficient de corrélation (rho) est égal à zéro (pas de relation linéaire).
+cor_test_heures = cor.test(df_clean$Heures_Hebdomadaires, df_clean$Log_Revenu, use = "complete.obs")
+print(cor_test_heures)
+
+
+
+
 
 # ==============================================================================
 # 2.7. LOG(REVENU) vs. ASSURANCE
@@ -378,57 +499,12 @@ plot_boxplot_assurance = ggplot(df_clean, aes(x = A_Assurance_Sante, y = Log_Rev
 
 print(plot_boxplot_assurance)
 
+#Test t de Student : Log(Revenu) vs. Statut d'Assurance Santé ___________________________)
+
+# H0: La moyenne de Log_Revenu est la même pour les groupes "Assure_Oui" et "Assure_Non".
+t_test_assurance = t.test(Log_Revenu ~ A_Assurance_Sante, data = df_clean)
+print(t_test_assurance)
 
 
-# ==============================================================================
-# 3. QUALITATIF vs. QUALITATIF : SEXE vs. NIVEAU D'ÉTUDE (TEST DU CHI-2)
-# ==============================================================================
 
-# 1. Tableau de Contingence
-tab_sex_etude = table(Sexe_F, Niveau_Etude_G)
-addmargins(tab_sex_etude)
-
-# 2. Profils-Lignes (Fréquence du niveau d'étude conditionnel au sexe)
-tab_PL_etude = prop.table(tab_sex_etude, 1)
-round(tab_PL_etude, digits = 3)
-
-# 3. Graphique des Profils-Lignes
-barplot(t(tab_PL_etude), beside = TRUE,
-        main = "Niveau d'Étude selon le Sexe (Profils-Lignes)",
-        xlab = "Sexe", ylab = "Fréquence relative", ylim = c(0, 1.0),
-        col = hcl.colors(ncol(tab_PL_etude), palette = "Blue-Red"), # Palette en dégradé
-        legend.text = TRUE)
-
-# 4. Test de Corrélation Chi-2
-# H0 : Les variables Sexe et Niveau d'Étude sont indépendantes.
-res_chi2_etude = chisq.test(tab_sex_etude)
-res_chi2_etude
-
-
-# ==============================================================================
-# 2. MODÈLE ÉCONOMÉTRIQUE COMPLET
-# ==============================================================================
-
-cat("\n--- Modèle de Régression Linéaire : Log(Revenu) Complet ---\n")
-
-# Régression Linéaire Multiple avec toutes les variables factorielles créées
-# L'inclusion de 'Statut_Travail_F' pourrait être endogène, mais est incluse pour utiliser la variable.
-# 'Heures_Hebdomadaires' est incluse comme variable continue.
-
-model_reg_complet = lm(
-  Log_Revenu ~
-    Age +
-    Sexe_F +
-    Niveau_Etude_G +
-    Anglais_F +
-    Race_G +
-    Statut_Travail_F +
-    Heures_Hebdomadaires +
-    Assistance_Publique_F +
-    Scolarisation_F,
-  data = df_clean
-)
-
-# Résultat final du modèle
-summary(model_reg_complet)
 
