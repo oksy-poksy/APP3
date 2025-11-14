@@ -59,7 +59,7 @@ df_clean = data_migrants %>%
     Assurance_Etat = HINS6,# Statut d'assurance santé État/Local
     Assurance_Publique = HINS7,# Statut d'assurance santé Publique
     Langue_Maison_Code = LANX, # Parle langue autre qu'anglais à la maison
-    Assistance_Publique = PAP, # Reçoit de l'aide publique
+    Assistance_Publique_Montant = PAP, # Montant de l'aide publique (Renommé pour clarté) # Reçoit de l'aide publique
     Scolarisation = SCH,# Statut de scolarisation (Oui/Non)
     Niveau_Etude_Code = SCHL,# Code détaillé du plus haut niveau d'étude atteint
     Sexe = SEX,# Sexe (1=Homme, 2=Femme)
@@ -90,7 +90,7 @@ df_clean = data_migrants %>%
     ) %>% factor(levels = c("Moins que BAC", "BAC", "College/Associate", "Licence ou plus")), # Niveau d'Étude Regroupé (SCHL)
     Statut_Travail_F = factor(Statut_Travail, levels = c(1, 2), labels = c("Travail_Oui", "Travail_Non")), # 5. Statut de Travail (WKL)
 
-    # Race Regroupée (à partir de RAC1P)
+    # Ethnies Regroupée (à partir de RAC1P)
     Race_G = case_when(
       Race_Principale_Code == 1 ~ "Blanc",
       Race_Principale_Code == 2 ~ "Noir_AfroAmericain",
@@ -359,47 +359,42 @@ if (p_value < 0.001) {p_value_text = "p-value < 0.001 (***)"}
 # Création du texte d'annotation
 stats_text_kruskal = paste0("Test de Kruskal-Wallis :\n","\u03C7\u00B2 = ", round(chi_square, 2), " (ddl = ", kruskal_test_etude$parameter, ")\n", p_value_text)
 
-y_min = min(df_clean$Revenu_Total, na.rm = TRUE) # Changement ici
-x_max = length(levels(df_clean$Niveau_Etude_G)) # Nombre de catégories (pour l'axe X)
+# Définition des coordonnées pour l'annotation
+# x = 1 (La première catégorie, pour l'alignement à gauche)
+# y = Valeur maximale de l'axe Y (le haut du graphique)
+y_max_plot = quantile(df_avg_etude$Moyenne_Revenu, 1) * 1.05 # Correspond à la limite supérieure de coord_cartesian
 
-# Définir la limite Y pour le graphique (troncature visuelle)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE)
+plot_bar_etudes_mise_a_jour = ggplot(df_avg_etude, aes(x = Niveau_Etude_G, y = Moyenne_Revenu, fill = Niveau_Etude_G)) +
+  # Diagramme à barres de la moyenne
+  geom_bar(stat = "identity", alpha = 0.8) +
+  # Ligne de référence pour la moyenne globale
+  geom_hline(yintercept = moyenne_globale_revenu, linetype = "dashed", color = "black", linewidth = 1) +
 
-
-# ==============================================================================
-
-nombre_categories_etude = length(levels(df_clean$Niveau_Etude_G))
-palette_etudes = hcl.colors(nombre_categories_etude, palette = "Sunset", rev = TRUE)
-
-plot_boxplot_etudes_annotated = ggplot(df_clean, aes(x = Niveau_Etude_G, y = Revenu_Total, fill = Niveau_Etude_G)) + # Changement ici
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
-  scale_fill_manual(values = palette_etudes) +
-
+  scale_fill_manual(values = hcl.colors(x_max, palette = "Sunset", rev = TRUE)) +
   # Troncature de l'axe Y pour la lisibilité
-  coord_cartesian(ylim = c(0, limite_y_revenu)) +
-  # Formatage de l'axe Y en milliers de dollars
+  coord_cartesian(ylim = c(0, y_max_plot)) + # Utilise la variable y_max_plot
   scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
 
-  # Ajout des résultats du test statistique en BAS A DROITE
+  # Ajout des résultats du test statistique (Kruskal-Wallis)
   annotate("text",
-           x = x_max, # Position X (sur la dernière catégorie)
-           y = y_min + 1, # Position Y (juste au-dessus du minimum, ajusté pour l'échelle)
+           x = 1, # Position X : sur la première catégorie (ou 0.5 si vous voulez le décoller de l'axe)
+           y = y_max_plot * 0.95, # Position Y : près du sommet (95% de la hauteur)
            label = stats_text_kruskal,
-           hjust = 1, vjust = 0, # Alignement à droite et en bas
+           hjust = 0, # Alignement horizontal : à gauche
+           vjust = 1, # Alignement vertical : en haut
            size = 4,
            color = "gray10") +
+
   labs(
-    title = "Rendement de l'Éducation sur le Revenu Total (Migrants PD)", # Changement ici
-    subtitle = "La tendance centrale du Revenu Total est significativement différente selon le niveau d'étude. Axe Y tronqué au 99e percentile.",
+    title = "Revenu Total Moyen selon le Niveau d'Étude (Migrants PD)",
+    subtitle = "La ligne pointillée indique la moyenne globale de l'échantillon.",
     x = "Niveau d'Étude",
-    y = "Revenu Total Annuel (en milliers de $)" # Changement ici
+    y = "Revenu Total Annuel Moyen (en milliers de $)"
   ) +
   theme_light() +
   theme(axis.text.x = element_text(angle = 15, hjust = 1), legend.position = "none")
 
-print(plot_boxplot_etudes_annotated)
-
-
+print(plot_bar_etudes_mise_a_jour)
 
 
 # ==============================================================================
@@ -422,40 +417,71 @@ stats_text_kruskal_anglais = paste0("Test de Kruskal-Wallis :\n", "\u03C7\u00B2 
 # Calcul des coordonnées pour le coin inférieur droit
 y_min = min(df_clean$Revenu_Total, na.rm = TRUE) # Changement ici
 x_max = length(levels(df_clean$Anglais_F)) # Nombre de catégories (pour l'axe X)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE) # Définir la limite Y pour le graphique (troncature visuelle)
+limite_y_revenu = quantile(df_clean$Revenu_Total, 0.95, na.rm = TRUE) # Définir la limite Y pour le graphique (troncature visuelle)
 
 
 # ==============================================================================
 
-nombre_categories_anglais = length(levels(df_clean$Anglais_F))
-palette_anglais = hcl.colors(nombre_categories_anglais, palette = "Mint", rev = TRUE)
+# Calcul des médianes pour annotation (le point central de la distribution)
+df_medianes_anglais = df_clean %>%
+  group_by(Anglais_F) %>%
+  summarise(
+    mediane = median(Revenu_Total, na.rm = TRUE),
+    .groups = 'drop'
+  )
 
-plot_boxplot_anglais_annotated = ggplot(df_clean, aes(x = Anglais_F, y = Revenu_Total, fill = Anglais_F)) + # Changement ici
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
-  scale_fill_manual(values = palette_anglais) +
-  # Troncature de l'axe Y pour la lisibilité
-  coord_cartesian(ylim = c(0, limite_y_revenu)) +
-  # Formatage de l'axe Y en milliers de dollars
-  scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
+# --- NOUVELLE PALETTE DE COULEURS ---
+nouvelle_palette_anglais = c(
+  "Pas du tout" = "#005a99",    # Bleu foncé (faible performance)
+  "Pas Bien" = "#5b9dd9",       # Bleu clair
+  "Bien" = "#96d296",           # Vert clair
+  "Très Bien" = "#008000"       # Vert foncé (forte performance)
+)
+
+plot_densite_anglais = ggplot(df_clean, aes(x = Revenu_Total, color = Anglais_F, fill = Anglais_F)) +
+
+  # 1. Courbes de Densité (histogrammes lissés)
+  geom_density(alpha = 0.2, linewidth = 1) +
+
+  # 2. Lignes verticales pour les Médianes
+  geom_vline(data = df_medianes_anglais, aes(xintercept = mediane, color = Anglais_F),
+             linetype = "dashed", linewidth = 1) +
+
+  # 3. Échelles et Troncature
+  scale_fill_manual(values = nouvelle_palette_anglais) +
+  scale_color_manual(values = nouvelle_palette_anglais) +
+
+  # Troncature de l'axe X pour la lisibilité
+  coord_cartesian(xlim = c(0, limite_y_revenu)) +
+  scale_x_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
+
+  # 4. Annotation Statistique (Haut à Droite, car l'axe X est tronqué)
   annotate("text",
-           x = x_max,# Position X (sur la dernière catégorie)
-           y = y_min + 1, # Position Y (juste au-dessus du minimum de l'axe)
+           x = limite_y_revenu * 0.98, # Position X (près de l'extrémité droite)
+           y = max(ggplot_build(ggplot(df_clean, aes(x=Revenu_Total, fill=Anglais_F)) +
+                                  geom_density(alpha=0.2))$data[[1]]$density) * 0.9, # Position Y (près du sommet max)
            label = stats_text_kruskal_anglais,
-           hjust = 1, vjust = 0, # Alignement à droite et en bas
+           hjust = 1, vjust = 1,
            size = 4,
            color = "gray10") +
+
+  # 5. Labels et Thème
   labs(
-    title = "Rendement Linguistique sur le Revenu Total (Migrants PD)", # Changement ici
-    subtitle = "La tendance centrale du Revenu Total est significativement différente selon la maîtrise de l'Anglais. Axe Y tronqué au 99e percentile.",
-    x = "Maîtrise de l'Anglais",
-    y = "Revenu Total Annuel (en milliers de $)" # Changement ici
+    title = "Distribution du Revenu Total selon la Maîtrise de l'Anglais",
+    subtitle = "Les lignes pointillées indiquent la médiane de chaque groupe ",
+    x = "Revenu Total Annuel (en milliers de $)",
+    y = "Densité",
+    color = "Anglais",
+    fill = "Anglais"
   ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 15, hjust = 1), legend.position = "none")
+  theme_light() +
+  theme(
+    legend.position = "bottom",
+    axis.text.y = element_blank(), # Cache l'axe Y (la densité brute n'est pas très informative)
+    axis.ticks.y = element_blank()
+  )
 
-print(plot_boxplot_anglais_annotated)
-
-
+print(plot_densite_anglais)
 
 # ==============================================================================
 # 2.3. REVENU TOTAL vs. SEXE
@@ -474,40 +500,53 @@ if (p_value_sexe < 0.001) {p_value_text_sexe = "p-value < 0.001 (***)"}
 
 # Création du texte d'annotation
 stats_text_t_test = paste0("Test t de Student :\n", "t = ", round(t_statistic, 2), " (ddl = ", round(ddl_sexe, 0), ")\n",p_value_text_sexe)
+df_avg_sexe = df_clean %>%
+  group_by(Sexe_F) %>%
+  summarise(
+    Moyenne_Revenu = mean(Revenu_Total, na.rm = TRUE),
+    .groups = 'drop'
+  )
 
-y_min = min(df_clean$Revenu_Total, na.rm = TRUE) # Changement ici
-x_max = length(levels(df_clean$Sexe_F)) # Nombre de catégories (2 pour Hommes/Femmes)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE) # Définir la limite Y pour le graphique (troncature visuelle)
+moyenne_globale_revenu = mean(df_clean$Revenu_Total, na.rm = TRUE)
+palette_sexe = c("skyblue", "cornflowerblue")
+x_max = length(levels(df_clean$Sexe_F))
+y_max_bar = max(df_avg_sexe$Moyenne_Revenu) * 1.05
 
-# ==============================================================================
+plot_bar_sexe_encadre = ggplot(df_avg_sexe, aes(x = Sexe_F, y = Moyenne_Revenu, fill = Sexe_F)) +
 
-palette_sexe = c("skyblue", "pink")
+  # 1. Diagramme à barres de la moyenne
+  geom_bar(stat = "identity", alpha = 0.8, width = 0.6) +
 
-plot_boxplot_sexe_annotated = ggplot(df_clean, aes(x = Sexe_F, y = Revenu_Total, fill = Sexe_F)) + # Changement ici
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  # 2. Ligne de référence pour la moyenne globale
+  geom_hline(yintercept = moyenne_globale_revenu, linetype = "dashed", color = "black", linewidth = 1) +
+
+  # 3. Échelles et Troncature
   scale_fill_manual(values = palette_sexe) +
-  # Troncature de l'axe Y pour la lisibilité
-  coord_cartesian(ylim = c(0, limite_y_revenu)) +
-  # Formatage de l'axe Y en milliers de dollars
+  coord_cartesian(ylim = c(0, y_max_bar)) +
   scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
-  # Ajout des résultats du test statistique en BAS A DROITE
-  annotate("text",
-           x = x_max,# Position X (sur la dernière catégorie : "Femme")
-           y = y_min + 1, # Position Y (juste au-dessus du minimum de l'axe)
+
+  # 4. Annotation Statistique (HAUT À DROITE - ENCADRÉ)
+  annotate("label", # <-- CHANGEMENT CLÉ : utilise "label" pour le cadre
+           x = x_max + 0.1, # <-- PLUS À DROITE : décale la position X légèrement au-delà de la dernière barre
+           y = y_max_bar * 0.98,
            label = stats_text_t_test,
-           hjust = 1, vjust = 0, # Alignement à droite et en bas
+           hjust = 1, vjust = 1, # Alignement à droite et en haut
            size = 4,
-           color = "gray10") +
+           color = "gray10",
+           fill = "white", # <-- Fond blanc pour le cadre
+           label.size = 0.5) +
+
+  # 5. Labels et Thème
   labs(
-    title = "Écart de Revenu Total selon le Sexe (Migrants PD)", # Changement ici
-    subtitle = "La différence de moyenne de Revenu Total entre les sexes est hautement significative. Axe Y tronqué au 99e percentile.",
+    title = "Revenu Total Moyen selon le Sexe (Migrants PD)",
+    subtitle = "Les barres indiquent les moyennes de Revenu Total pour chaque sexe.",
     x = "Sexe",
-    y = "Revenu Total Annuel (en milliers de $)" # Changement ici
+    y = "Revenu Total Annuel Moyen (en milliers de $)"
   ) +
   theme_bw() +
   theme(legend.position = "none")
 
-print(plot_boxplot_sexe_annotated)
+print(plot_bar_sexe_encadre)
 
 
 # ==============================================================================
@@ -567,74 +606,64 @@ print(plot_boxplot_race_annotated)
 
 
 # ==============================================================================
-# 2.5. REVENU TOTAL vs. ASSISTANCE PUBLIQUE (Code Corrigé)
+# 2.5. REVENU TOTAL vs. ETHNIE (Diagramme à Barres Simples)
 # ==============================================================================
 
-# --- ASSURER 2 NIVEAUX DANS LE FACTEUR (Code de la réponse précédente) ---
-df_clean_ap_valid = df_clean %>%
-  filter(Assistance_Publique %in% c(1, 2)) %>%
-  mutate(Assistance_Publique_F = factor(Assistance_Publique_F, levels = c("AssistPublic_Non", "AssistPublic_Oui")))
+# Calcul des moyennes (pas besoin de l'IC)
+df_avg_race = df_clean %>%
+  group_by(Race_G) %>%
+  summarise(
+    Moyenne_Revenu = mean(Revenu_Total, na.rm = TRUE),
+    .groups = 'drop'
+  )
 
-# Test t de Student
-t_test_assistance_pub = t.test(Revenu_Total ~ Assistance_Publique_F, data = df_clean_ap_valid) # Changement ici
+moyenne_globale_revenu = mean(df_clean$Revenu_Total, na.rm = TRUE)
+nombre_categories_race = length(levels(df_clean$Race_G))
+palette_race = hcl.colors(nombre_categories_race, palette = "Plasma", rev = TRUE)
+x_max = length(levels(df_clean$Race_G))
 
-# Extraction des valeurs clés
-t_statistic_ap = t_test_assistance_pub$statistic
-p_value_ap = t_test_assistance_pub$p.value
-ddl_ap = t_test_assistance_pub$parameter
+# Définir la limite Y pour le graphique (basée sur le max des moyennes)
+y_max_bar = max(df_avg_race$Moyenne_Revenu) * 1.05
 
-# Formater la p-value
-p_value_text_ap = paste0("p-value: ", format.pval(p_value_ap, digits = 3, eps = 0.001))
-if (p_value_ap < 0.001) {
-  p_value_text_ap = "p-value < 0.001 (***)"
-}
 
-# Création du texte d'annotation
-stats_text_t_test_ap = paste0(
-  "Test t de Student :\n",
-  "t = ", round(t_statistic_ap, 2), " (ddl = ", round(ddl_ap, 0), ")\n",
-  p_value_text_ap
-)
+  # 1. Diagramme à barres de la moyenne
+  geom_bar(stat = "identity", alpha = 0.8, width = 0.7) +
 
-# Calcul des coordonnées pour le coin inférieur droit
-y_min = min(df_clean$Revenu_Total, na.rm = TRUE) # Changement ici
-x_max = length(levels(df_clean$Assistance_Publique_F)) # Nombre de catégories (2)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE) # Définir la limite Y pour le graphique (troncature visuelle)
+  # 2. Ligne de référence pour la moyenne globale
+  geom_hline(yintercept = moyenne_globale_revenu, linetype = "dashed", color = "black", linewidth = 1) +
 
-# ==============================================================================
-
-palette_assistance = c("gray50", "firebrick")
-
-plot_boxplot_ap_annotated = ggplot(df_clean_ap_valid, aes(x = Assistance_Publique_F, y = Revenu_Total, fill = Assistance_Publique_F)) + # Changement ici
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
-  scale_fill_manual(values = palette_assistance) +
-
-  # Troncature de l'axe Y pour la lisibilité
-  coord_cartesian(ylim = c(0, limite_y_revenu)) +
-  # Formatage de l'axe Y en milliers de dollars
+  # 3. Échelles et Troncature
+  scale_fill_manual(values = palette_race) +
+  coord_cartesian(ylim = c(0, y_max_bar)) +
   scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
 
-  # Ajout des résultats du test statistique en BAS A DROITE
-  annotate("text",
-           x = x_max,# Position X (sur la dernière catégorie)
-           y = y_min + 1, # Position Y (juste au-dessus du minimum de l'axe)
-           label = stats_text_t_test_ap,
-           hjust = 1, vjust = 0, # Alignement à droite et en bas
+  # 4. Annotation Statistique (HAUT À DROITE - ENCADRÉ)
+  annotate("label",
+           x = x_max + 0.1, # Position X : Plus à droite
+           y = y_max_bar * 0.98, # Position Y : Plus haut
+           label = stats_text_kruskal_race, # Texte du Kruskal-Wallis
+           hjust = 1, vjust = 1,
            size = 4,
-           color = "gray10") +
+           color = "gray10",
+           fill = "white",
+           label.size = 0.2) +
 
-  labs(title = "Revenu Total vs. Assistance Publique (Migrants PD)", # Changement ici
-       subtitle = "La différence de moyenne de Revenu Total entre les groupes est hautement significative. Axe Y tronqué au 99e percentile.",
-       x = "Reçoit de l'aide publique?",
-       y = "Revenu Total Annuel (en milliers de $)") # Changement ici
-theme_minimal() +
-  theme(legend.position = "none")
+  # 5. Labels et Thème
+  labs(
+    title = "Revenu Total Moyen selon l'Ethnie Principale (Migrants PD)",
+    subtitle = "Les barres indiquent les moyennes de Revenu Total pour chaque groupe ethnique.",
+    x = "Catégorie d'Ethnie",
+    y = "Revenu Total Annuel Moyen (en milliers de $)"
+  ) +
+  theme_light() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
 
-print(plot_boxplot_ap_annotated)
+print(plot_bar_race_simple)
+
 
 
 # ==============================================================================
-# 2.6. REVENU TOTAL vs. HEURES HEBDOMADAIRES (Nuage de points)
+# 2.6. REVENU TOTAL vs. HEURES HEBDOMADAIRES (faire un Nuage de points)
 # ==============================================================================
 
 # Test de Corrélation de Pearson
@@ -650,41 +679,47 @@ p_value_text_cor = paste0("p-value: ", format.pval(p_value_cor, digits = 3, eps 
 if (p_value_cor < 0.001) {p_value_text_cor = "p-value < 0.001 (***)"}
 
 stats_text_pearson = paste0("Test de Corrélation de Pearson :\n","r = ", round(r_coefficient, 3), " (Force de l'association)\n",p_value_text_cor)
-
-y_min = min(df_clean$Revenu_Total, na.rm = TRUE) # Changement ici
-x_max = max(df_clean$Heures_Hebdomadaires, na.rm = TRUE)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE) # Définir la limite Y pour le graphique (troncature visuelle)
-
-
-# ==============================================================================
+# Définition des coordonnées pour l'annotation
+# Utilisez limite_y_revenu comme maximum Y, et x_max comme maximum X.
+y_max_plot = limite_y_revenu * 1.02 # Un peu au-dessus de la ligne de troncature
+x_pos_plot = x_max # Position X: Sur la valeur maximale des heures
 
 set.seed(42)
-n_sample_heures = min(nrow(df_clean), 5000) # Échantillonnage des points pour la performance
+n_sample_heures = min(nrow(df_clean), 50000)
 df_sample_heures = df_clean %>% sample_n(n_sample_heures)
 
 suppressWarnings({
-  plot_heures_revenu_annotated = ggplot(df_clean, aes(x = Heures_Hebdomadaires, y = Revenu_Total)) + # Changement ici
+  plot_heures_revenu_annotated = ggplot(df_clean, aes(x = Heures_Hebdomadaires, y = Revenu_Total)) +
+
     # Points du sous-échantillon
     geom_point(data = df_sample_heures, alpha = 0.3, size = 0.6, color = "darkblue") +
+
     # Courbe de tendance (Régression Linéaire simple)
     geom_smooth(method = "lm", formula = y ~ x, se = TRUE,
                 color = "darkgreen", linewidth = 1.5, fill = "lightgreen", alpha = 0.3) +
+
     # Troncature de l'axe Y pour la lisibilité
     coord_cartesian(ylim = c(0, limite_y_revenu)) +
+
     # Formatage de l'axe Y en milliers de dollars
     scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
-    annotate("text",
-             x = x_max * 0.98,# Ancrage près de l'extrême droite
-             y = y_min + 1, # Position Y (juste au-dessus du minimum de l'axe)
+
+    # Ajout de l'Annotation Encadrée (HAUT À DROITE)
+    annotate("label", # <-- Utilise "label" pour l'encadré
+             x = x_pos_plot, # Position X (Max des Heures)
+             y = y_max_plot, # Position Y (Juste au-dessus de la limite)
              label = stats_text_pearson,
-             hjust = 1, vjust = 0,# Alignement à droite et en bas
+             hjust = 0, vjust = 1, # Alignement à droite et en haut
              size = 4,
-             color = "gray10") +
+             color = "gray10",
+             fill = "white", # Fond blanc pour le cadre
+             label.size = 0.5) +
+
     labs(
-      title = "Revenu Total vs. Heures Hebdomadaires (Migrants PD)", # Changement ici
+      title = "Revenu Total vs. Heures Hebdomadaires (Migrants PD)",
       subtitle = paste("Corrélation positive modérée et hautement significative. Axe Y tronqué au 99e percentile. N points tracés =", n_sample_heures),
       x = "Heures de Travail Hebdomadaires",
-      y = "Revenu Total Annuel (en milliers de $)" # Changement ici
+      y = "Revenu Total Annuel (en milliers de $)"
     ) +
     theme_bw()
 
@@ -737,34 +772,135 @@ limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE) # Définir
 
 # ==============================================================================
 
+# Calcul des moyennes pour le graphique
+df_avg_assurance = df_clean %>%
+  group_by(A_Assurance_Sante) %>%
+  summarise(
+    Moyenne_Revenu = mean(Revenu_Total, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+moyenne_globale_revenu = mean(df_clean$Revenu_Total, na.rm = TRUE)
 palette_assurance_totale = c("lightblue4", "lightblue")
+x_max = length(levels(df_clean$A_Assurance_Sante))
 
-plot_boxplot_assurance_annotated = ggplot(df_clean, aes(x = A_Assurance_Sante, y = Revenu_Total, fill = A_Assurance_Sante)) + # Changement ici
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+# Définir la limite Y pour le graphique (basée sur le max des moyennes)
+y_max_bar = max(df_avg_assurance$Moyenne_Revenu) * 1.05
+
+plot_bar_assurance_simple = ggplot(df_avg_assurance, aes(x = A_Assurance_Sante, y = Moyenne_Revenu, fill = A_Assurance_Sante)) +
+
+  # 1. Diagramme à barres de la moyenne
+  geom_bar(stat = "identity", alpha = 0.8, width = 0.6) +
+
+  # 2. Ligne de référence pour la moyenne globale
+  geom_hline(yintercept = moyenne_globale_revenu, linetype = "dashed", color = "black", linewidth = 1) +
+
+  # 3. Échelles et Troncature
   scale_fill_manual(values = palette_assurance_totale) +
-
-  # Troncature de l'axe Y pour la lisibilité
-  coord_cartesian(ylim = c(0, limite_y_revenu)) +
-  # Formatage de l'axe Y en milliers de dollars
+  coord_cartesian(ylim = c(0, y_max_bar)) +
   scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
 
-  # Ajout des résultats du test statistique en BAS A DROITE
-  annotate("text",
-           x = x_max, # Position X (sur la dernière catégorie)
-           y = y_min + 1, # Position Y (juste au-dessus du minimum de l'axe)
-           label = stats_text_t_test_assurance,
-           hjust = 1, vjust = 0, # Alignement à droite et en bas
+  # 4. Annotation Statistique (HAUT À DROITE - ENCADRÉ)
+  annotate("label",
+           x = 1.2 - 0.1, # Position X : Plus à droite
+           y = y_max_bar * 0.98, # Position Y : Plus haut
+           label = stats_text_t_test_assurance, # Texte du Test t de Student
+           hjust = 1, vjust = 1,
            size = 4,
-           color = "gray10") +
+           color = "gray10",
+           fill = "white",
+           label.size = 0.5) +
 
+  # 5. Labels et Thème
   labs(
-    title = "Revenu Total vs. Statut d'Assurance Santé (Migrants PD)", # Changement ici
-    subtitle = "La différence de moyenne de Revenu Total entre les groupes est hautement significative. Axe Y tronqué au 99e percentile.",
+    title = "Revenu Total Moyen vs. Statut d'Assurance Santé (Migrants PD)",
+    subtitle = "La moyenne de revenu est comparée selon le statut d'assurance santé totale (privée ou publique).",
     x = "Possède une Assurance Santé?",
-    y = "Revenu Total Annuel (en milliers de $)" # Changement ici
+    y = "Revenu Total Annuel Moyen (en milliers de $)"
   ) +
   theme_bw() +
   theme(legend.position = "none")
 
-print(plot_boxplot_assurance_annotated)
+print(plot_bar_assurance_simple)
+
+
+# ==============================================================================
+# 2.11. ANALYSE BIVARIÉE : REVENU TOTAL vs. MONTANT D'ASSISTANCE PUBLIQUE (PAP)
+#       FILTRÉ UNIQUEMENT SUR LES BÉNÉFICIAIRES (PAP > 0)
+# ==============================================================================
+
+# 1. PRÉPARATION DES DONNÉES ____
+df_clean_beneficiaires = df_clean %>%
+  # On filtre les NA
+  filter(!is.na(Revenu_Total) & !is.na(Assistance_Publique_Montant)) %>%
+  # 🛑 NOUVEAU FILTRE : ON GARDE UNIQUEMENT CEUX QUI REÇOIVENT QUELQUE CHOSE (Montant > 0)
+  filter(Assistance_Publique_Montant > 0)
+
+# Nous allons utiliser toutes les données pour la corrélation, mais échantillonner pour le graphique.
+n_sample_cor_benef = min(nrow(df_clean_beneficiaires), 5000)
+set.seed(42)
+df_sample_cor_benef = df_clean_beneficiaires %>% sample_n(n_sample_cor_benef)
+
+# Vérification (optionnel) : affiche le nombre d'observations restantes
+cat("Nombre de bénéficiaires pour l'analyse :", nrow(df_clean_beneficiaires), "\n")
+
+
+# 2. TEST STATISTIQUE (Corrélation de Pearson)
+cor_test_pap_revenu = cor.test(df_clean_beneficiaires$Assistance_Publique_Montant,
+                               df_clean_beneficiaires$Revenu_Total,
+                               method = "pearson")
+r_coefficient = cor_test_pap_revenu$estimate
+p_value_cor = cor_test_pap_revenu$p.value
+
+# Formater le texte du résultat pour l'annotation
+p_value_text_cor = paste0("p-value: ", format.pval(p_value_cor, digits = 3, eps = 0.001))
+if (p_value_cor < 0.001) {p_value_text_cor = "p-value < 0.001 (***)"}
+stats_text_pearson = paste0("Test de Corrélation de Pearson :\n",
+                            "r = ", round(r_coefficient, 3), " (Force de l'association)\n",
+                            p_value_text_cor)
+
+# Définir les limites Y et X pour le graphique (troncature pour Revenu)
+limite_y_revenu = quantile(df_clean_beneficiaires$Revenu_Total, 0.99, na.rm = TRUE)
+x_max_pap = max(df_clean_beneficiaires$Assistance_Publique_Montant, na.rm = TRUE)
+y_max_plot = limite_y_revenu * 0.98
+
+# 3. CRÉATION DU GRAPHIQUE (Nuage de points avec régression linéaire)
+suppressWarnings({
+  plot_pap_revenu_annotated_benef = ggplot(df_clean_beneficiaires, aes(x = Assistance_Publique_Montant, y = Revenu_Total)) +
+
+    # Points (utilisent l'échantillon pour la lisibilité)
+    geom_point(data = df_sample_cor_benef, alpha = 0.2, size = 0.6, color = "darkblue") +
+
+    # Droite de Régression Linéaire
+    geom_smooth(method = "lm", formula = y ~ x, se = TRUE,
+                color = "firebrick", linewidth = 1.5, fill = "salmon", alpha = 0.3) +
+
+    # Troncature de l'axe Y pour la lisibilité
+    coord_cartesian(ylim = c(0, limite_y_revenu),
+                    xlim = c(0, x_max_pap * 1.05)) +
+
+    # Formatage des axes en milliers de dollars
+    scale_y_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
+    scale_x_continuous(labels = dollar_format(prefix="$", scale=1e-3, suffix="K")) +
+
+    # Annotation Statistique (HAUT À GAUCHE - ENCADRÉ)
+    annotate("label",
+             x = 1, y = y_max_plot,
+             label = stats_text_pearson,
+             hjust = 0, vjust = 1, # Alignement Haut à Gauche
+             size = 4,
+             color = "gray10",
+             fill = "white",
+             label.size = 0.5) +
+
+    labs(
+      title = "Revenu Total Annuel vs. Montant d'Assistance Publique (Bénéficiaires PD Seulement)",
+      subtitle = paste("Analyse limitée aux individus recevant de l'aide publique (PAP > $0). \nN points tracés =", n_sample_cor_benef, ". L'Axe Y est tronqué."),
+      x = "Montant d'Assistance Publique Annuel (en milliers de $)",
+      y = "Revenu Total Annuel (en milliers de $)"
+    ) +
+    theme_bw()
+
+  print(plot_pap_revenu_annotated_benef)
+})
 
