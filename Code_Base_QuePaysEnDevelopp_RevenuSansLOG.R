@@ -829,7 +829,7 @@ print(plot_bar_assurance_simple)
 #       FILTRÉ UNIQUEMENT SUR LES BÉNÉFICIAIRES (PAP > 0)
 # ==============================================================================
 
-# 1. PRÉPARATION DES DONNÉES ____
+# 1. PRÉPARATION DES DONNÉES _____
 df_clean_beneficiaires = df_clean %>%
   # On filtre les NA
   filter(!is.na(Revenu_Total) & !is.na(Assistance_Publique_Montant)) %>%
