@@ -291,7 +291,7 @@ stats_text_modele = paste0(
   "R² Ajusté: ", round(r_carre_ajuste, 3))
 
 # Définir la limite Y pour le graphique (troncature visuelle)
-limite_y_revenu = quantile(df_clean$Revenu_Total, 0.99, na.rm = TRUE)
+limite_y_revenu = quantile(df_clean$Revenu_Total, 0.95, na.rm = TRUE)
 
 # ______ graphique _____
 set.seed(42)
@@ -319,10 +319,10 @@ suppressWarnings({
     # Annotation des résultats statistiques (Positionnée en BAS A DROITE)
     annotate("text",
              x = x_max * 0.98, # Ancrage près de l'extrême droite (98%)
-             y = y_min + 1000, # Ancrage près de l'extrême bas (ajusté pour l'échelle du revenu brut)
+             y = limite_y_revenu * 0.98 , # Ancrage près de l'extrême bas (ajusté pour l'échelle du revenu brut)
              label = stats_text_modele,
              hjust = 1,# Alignement horizontal à droite
-             vjust = 0,# Alignement vertical en bas
+             vjust = 1,# Alignement vertical en bas
              size = 4,
              color = "black") +
     # Troncature de l'axe Y pour la lisibilité
